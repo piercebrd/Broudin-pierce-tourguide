@@ -20,8 +20,12 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import java.util.concurrent.CompletableFuture;
 
 @Service
 public class TourGuideService {
@@ -32,6 +36,8 @@ public class TourGuideService {
 	private final TripPricer tripPricer = new TripPricer();
 	public final Tracker tracker;
 	boolean testMode = true;
+
+	private final ExecutorService executorService = Executors.newFixedThreadPool(100);
 
 	public TourGuideService(GpsUtil gpsUtil, RewardsService rewardsService) {
 		this.gpsUtil = gpsUtil;
@@ -97,6 +103,7 @@ public class TourGuideService {
 		return visitedLocation;
 	}
 
+
 	// 1st Method: For the test - returns List<Attraction>
 	public List<Attraction> getNearbyAttractions(VisitedLocation visitedLocation) {
 		return gpsUtil.getAttractions().stream()
@@ -126,6 +133,16 @@ public class TourGuideService {
 				})
 				.collect(Collectors.toList());
 	}
+
+	// Parallel location tracking
+	public void trackAllUsersLocation(List<User> users) {
+		List<CompletableFuture<Void>> futures = users.stream()
+				.map(user -> CompletableFuture.runAsync(() -> trackUserLocation(user), executorService))
+				.collect(Collectors.toList());
+
+		CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+	}
+
 
 	public List<Attraction> getAllAttractions() {
 		return gpsUtil.getAttractions();
